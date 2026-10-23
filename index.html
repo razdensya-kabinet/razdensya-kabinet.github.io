@@ -3492,6 +3492,14 @@
     jobs.push(db.doc('settings/main').set(SEED.settings || {}));
     return Promise.all(jobs);
   }
+  // PIN по умолчанию (23.10.2026, решение Александра): ставится один раз на устройстве, где PIN ещё не задан.
+  // Если потом сменить или выключить PIN в настройках — повторно не ставится (метка pinPreset).
+  var PIN_PRESET = { h:'ddf693dc2fed268c919c4eff04acf8c732d164077b14b52108d239b059f10603', s:'rk1023', a:'sha256' };
+  function presetPin(db){
+    var st = db.raw['settings/main'] || {};
+    if (st.pinPreset || (st.pin && st.pin.h)) return Promise.resolve();
+    return db.doc('settings/main').set(Object.assign({}, st, { pin:PIN_PRESET, lockMin:isNum(st.lockMin) ? st.lockMin : 120, pinPreset:1 }));
+  }
   function connect(){
     openIdb().then(function(idb){
       return idbLoadAll(idb).then(function(data){ return LocalDB(idb, data); });
@@ -3499,7 +3507,7 @@
       S.db = db; S.dbState = 'on'; S.canWrite = true; S.isOwner = false;
       window.__store = db.raw;
       if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function(){});
-      return seedIfEmpty(db).then(function(){ listen(); render(); flush(); });
+      return seedIfEmpty(db).then(function(){ return presetPin(db); }).then(function(){ listen(); render(); flush(); });
     }).catch(function(){ S.dbState = 'off'; render(); });
   }
   // приложение для экрана «Домой»: работает без интернета, новая версия подхватывается сама
